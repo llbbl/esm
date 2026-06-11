@@ -7,13 +7,13 @@ use EnumStateMachine\Exceptions\HookExecutionException;
 use EnumStateMachine\Exceptions\InvalidTransitionException;
 use EnumStateMachine\Exceptions\StateMachineException;
 use EnumStateMachine\Reflection\EnumInspector;
-use EnumStateMachine\StateMachine;
 use EnumStateMachine\Tests\Fixtures\AfterHookA;
 use EnumStateMachine\Tests\Fixtures\AllowGuard;
 use EnumStateMachine\Tests\Fixtures\CustomEvent;
 use EnumStateMachine\Tests\Fixtures\CustomEventState;
 use EnumStateMachine\Tests\Fixtures\FakeContainer;
 use EnumStateMachine\Tests\Fixtures\FakeDispatcher;
+use EnumStateMachine\Tests\Fixtures\Machines;
 use EnumStateMachine\Tests\Fixtures\MachineState;
 use EnumStateMachine\Tests\Fixtures\OrderState;
 use EnumStateMachine\Tests\Fixtures\RecordingSpy;
@@ -26,14 +26,12 @@ beforeEach(function (): void {
 // --- getCurrentState / mutability -------------------------------------------
 
 it('reports the initial state', function (): void {
-    $machine = new StateMachine(MachineState::Start);
-
+    $machine = Machines::machine(MachineState::Start);
     expect($machine->getCurrentState())->toBe(MachineState::Start);
 });
 
 it('reflects the mutated state after a successful transition', function (): void {
-    $machine = new StateMachine(MachineState::Start);
-
+    $machine = Machines::machine(MachineState::Start);
     $returned = $machine->transitionTo(MachineState::Plain);
 
     expect($returned)->toBe(MachineState::Plain)
@@ -43,34 +41,29 @@ it('reflects the mutated state after a successful transition', function (): void
 // --- can() ------------------------------------------------------------------
 
 it('can() is true for a bare edge with no guards', function (): void {
-    $machine = new StateMachine(MachineState::Start);
-
+    $machine = Machines::machine(MachineState::Start);
     expect($machine->can(MachineState::Plain))->toBeTrue();
 });
 
 it('can() is true when the edge exists and every guard passes', function (): void {
-    $machine = new StateMachine(MachineState::Start);
-
+    $machine = Machines::machine(MachineState::Start);
     expect($machine->can(MachineState::Ordered))->toBeTrue();
 });
 
 it('can() is false when no rule matches', function (): void {
-    $machine = new StateMachine(MachineState::Start);
-
+    $machine = Machines::machine(MachineState::Start);
     // Plain is terminal here: no outgoing edges.
-    $machine = new StateMachine(MachineState::Plain);
-
+    $machine = Machines::machine(MachineState::Plain);
     expect($machine->can(MachineState::Ordered))->toBeFalse();
 });
 
 it('can() is false when a guard rejects', function (): void {
-    $machine = new StateMachine(MachineState::Start);
-
+    $machine = Machines::machine(MachineState::Start);
     expect($machine->can(MachineState::Denied))->toBeFalse();
 });
 
 it('can() passes the correct from, to and context to guards', function (): void {
-    $machine = new StateMachine(MachineState::Start);
+    $machine = Machines::machine(MachineState::Start);
     $context = new stdClass();
 
     expect($machine->can(MachineState::Ordered, $context))->toBeTrue();
@@ -82,7 +75,7 @@ it('can() passes the correct from, to and context to guards', function (): void 
     $container = new FakeContainer();
     $container->set(AllowGuard::class, $guard);
 
-    $machine = new StateMachine(MachineState::Start, $container);
+    $machine = Machines::machine(MachineState::Start, $container);
     $machine->can(MachineState::Ordered, $context);
 
     expect($guard->calls)->toHaveCount(1)
@@ -92,8 +85,7 @@ it('can() passes the correct from, to and context to guards', function (): void 
 });
 
 it('can() does not run before or after hooks', function (): void {
-    $machine = new StateMachine(MachineState::Start);
-
+    $machine = Machines::machine(MachineState::Start);
     $machine->can(MachineState::Ordered);
 
     expect(RecordingSpy::$calls)->toBe(['guard:Allow']);
@@ -103,7 +95,7 @@ it('can() does not run before or after hooks', function (): void {
 
 it('runs guards, before-hooks, mutation, then after-hooks in declared order', function (): void {
     $dispatcher = new FakeDispatcher();
-    $machine = new StateMachine(MachineState::Start, dispatcher: $dispatcher);
+    $machine = Machines::machine(MachineState::Start, dispatcher: $dispatcher);
     $context = new stdClass();
 
     $machine->transitionTo(MachineState::Ordered, $context);
@@ -119,7 +111,7 @@ it('runs guards, before-hooks, mutation, then after-hooks in declared order', fu
 
 it('dispatches a StateTransitioned event carrying from, to and context', function (): void {
     $dispatcher = new FakeDispatcher();
-    $machine = new StateMachine(MachineState::Start, dispatcher: $dispatcher);
+    $machine = Machines::machine(MachineState::Start, dispatcher: $dispatcher);
     $context = new stdClass();
 
     $machine->transitionTo(MachineState::Ordered, $context);
@@ -145,7 +137,7 @@ it('passes the correct from, to and context to before- and after-hooks', functio
     $container->set(\EnumStateMachine\Tests\Fixtures\BeforeHookB::class, new \EnumStateMachine\Tests\Fixtures\BeforeHookB());
     $container->set(\EnumStateMachine\Tests\Fixtures\AfterHookB::class, new \EnumStateMachine\Tests\Fixtures\AfterHookB());
 
-    $machine = new StateMachine(MachineState::Start, $container);
+    $machine = Machines::machine(MachineState::Start, $container);
     $context = new stdClass();
 
     $machine->transitionTo(MachineState::Ordered, $context);
@@ -161,15 +153,13 @@ it('passes the correct from, to and context to before- and after-hooks', functio
 // --- No rule ----------------------------------------------------------------
 
 it('throws InvalidTransitionException when no rule matches', function (): void {
-    $machine = new StateMachine(MachineState::Plain);
-
+    $machine = Machines::machine(MachineState::Plain);
     expect(fn () => $machine->transitionTo(MachineState::Ordered))
         ->toThrow(InvalidTransitionException::class);
 });
 
 it('the no-rule exception carries from and to and leaves state unchanged', function (): void {
-    $machine = new StateMachine(MachineState::Plain);
-
+    $machine = Machines::machine(MachineState::Plain);
     try {
         $machine->transitionTo(MachineState::Ordered);
         $this->fail('expected InvalidTransitionException');
@@ -185,8 +175,7 @@ it('the no-rule exception carries from and to and leaves state unchanged', funct
 // --- Guard rejects ----------------------------------------------------------
 
 it('throws InvalidTransitionException carrying the guard class when a guard returns false', function (): void {
-    $machine = new StateMachine(MachineState::Start);
-
+    $machine = Machines::machine(MachineState::Start);
     try {
         $machine->transitionTo(MachineState::Denied);
         $this->fail('expected InvalidTransitionException');
@@ -202,8 +191,7 @@ it('throws InvalidTransitionException carrying the guard class when a guard retu
 // --- Guard throws -----------------------------------------------------------
 
 it('propagates a guard exception raw and leaves state unchanged', function (): void {
-    $machine = new StateMachine(MachineState::Start);
-
+    $machine = Machines::machine(MachineState::Start);
     try {
         $machine->transitionTo(MachineState::GuardThrows);
         $this->fail('expected RuntimeException');
@@ -220,8 +208,7 @@ it('propagates a guard exception raw and leaves state unchanged', function (): v
 
 it('propagates a before-hook exception raw, leaves state unchanged, and skips after-hooks', function (): void {
     $dispatcher = new FakeDispatcher();
-    $machine = new StateMachine(MachineState::Start, dispatcher: $dispatcher);
-
+    $machine = Machines::machine(MachineState::Start, dispatcher: $dispatcher);
     try {
         $machine->transitionTo(MachineState::BeforeThrows);
         $this->fail('expected RuntimeException');
@@ -241,8 +228,7 @@ it('propagates a before-hook exception raw, leaves state unchanged, and skips af
 
 it('wraps an after-hook throwable, keeps the state changed, skips later hooks, and emits no event', function (): void {
     $dispatcher = new FakeDispatcher();
-    $machine = new StateMachine(MachineState::Start, dispatcher: $dispatcher);
-
+    $machine = Machines::machine(MachineState::Start, dispatcher: $dispatcher);
     try {
         $machine->transitionTo(MachineState::AfterThrows);
         $this->fail('expected HookExecutionException');
@@ -270,7 +256,7 @@ it('resolves guards and hooks through the container when one is supplied', funct
     $container->set(AfterHookA::class, new AfterHookA());
     $container->set(\EnumStateMachine\Tests\Fixtures\AfterHookB::class, new \EnumStateMachine\Tests\Fixtures\AfterHookB());
 
-    $machine = new StateMachine(MachineState::Start, $container);
+    $machine = Machines::machine(MachineState::Start, $container);
     $machine->transitionTo(MachineState::Ordered);
 
     expect($container->requested)->toBe([
@@ -285,8 +271,7 @@ it('resolves guards and hooks through the container when one is supplied', funct
 it('uses new $class() (not the container) when none is supplied', function (): void {
     // Without a container the transition still succeeds, proving direct
     // instantiation of the no-arg fixture classes.
-    $machine = new StateMachine(MachineState::Start);
-
+    $machine = Machines::machine(MachineState::Start);
     $machine->transitionTo(MachineState::Ordered);
 
     expect($machine->getCurrentState())->toBe(MachineState::Ordered);
@@ -300,8 +285,7 @@ it('throws StateMachineException when a resolved guard does not implement GuardI
     $container = new FakeContainer();
     $container->set(AllowGuard::class, new \EnumStateMachine\Tests\Fixtures\NotAGuard());
 
-    $machine = new StateMachine(MachineState::Start, $container);
-
+    $machine = Machines::machine(MachineState::Start, $container);
     expect(fn () => $machine->transitionTo(MachineState::Ordered))
         ->toThrow(StateMachineException::class, 'must implement');
 });
@@ -310,8 +294,7 @@ it('throws StateMachineException when a resolved guard does not implement GuardI
 
 it('does not dispatch an event when no dispatcher is supplied', function (): void {
     // No dispatcher; transition still completes without error.
-    $machine = new StateMachine(MachineState::Start);
-
+    $machine = Machines::machine(MachineState::Start);
     $machine->transitionTo(MachineState::Plain);
 
     expect($machine->getCurrentState())->toBe(MachineState::Plain);
@@ -320,8 +303,7 @@ it('does not dispatch an event when no dispatcher is supplied', function (): voi
 it('does not dispatch an event when dispatchEvents is false even with a dispatcher', function (): void {
     // OrderState declares dispatchEvents: false.
     $dispatcher = new FakeDispatcher();
-    $machine = new StateMachine(OrderState::Pending, dispatcher: $dispatcher);
-
+    $machine = Machines::order(OrderState::Pending, dispatcher: $dispatcher);
     $machine->transitionTo(OrderState::Paid);
 
     expect($machine->getCurrentState())->toBe(OrderState::Paid)
@@ -330,7 +312,7 @@ it('does not dispatch an event when dispatchEvents is false even with a dispatch
 
 it('honors a custom event class from config', function (): void {
     $dispatcher = new FakeDispatcher();
-    $machine = new StateMachine(CustomEventState::Start, dispatcher: $dispatcher);
+    $machine = Machines::customEvent(CustomEventState::Start, dispatcher: $dispatcher);
     $context = new stdClass();
 
     $machine->transitionTo(CustomEventState::Done, $context);

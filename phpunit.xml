@@ -8,6 +8,8 @@
     <testsuites>
         <testsuite name="Tests">
             <directory>tests</directory>
+            <!-- Static-analysis-only fixtures: analysed by PHPStan, never executed. -->
+            <exclude>tests/static</exclude>
         </testsuite>
     </testsuites>
     <source>

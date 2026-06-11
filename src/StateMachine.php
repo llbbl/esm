@@ -35,27 +35,43 @@ use Throwable;
  * Guard/hook classes are resolved LAZILY at transition time (never in the
  * constructor, never in {@see EnumInspector}); only the matched rule's classes
  * are materialized.
+ *
+ * Static analysis (§5.7): the class is generic over the concrete enum type via
+ * `@template T of \BackedEnum`. The native runtime signatures stay the broad
+ * `\BackedEnum`; the PHPDoc generics narrow `getCurrentState()` / `transitionTo()`
+ * back to the caller's specific enum (e.g. `OrderState`) for PHPStan/Psalm. The
+ * narrowing is annotation-only and has no runtime effect.
+ *
+ * @template T of \BackedEnum
  */
 final class StateMachine
 {
     private readonly EnumInspector $inspector;
 
     /**
-     * @param BackedEnum                     $currentState The machine's starting state (e.g. from a DB model).
-     * @param ContainerInterface|null        $container    Optional PSR-11 container for resolving guards/hooks.
-     * @param EventDispatcherInterface|null  $dispatcher   Optional PSR-14 dispatcher for transition events.
+     * @var T
+     */
+    private BackedEnum $currentState;
+
+    /**
+     * @param T                             $currentState The machine's starting state (e.g. from a DB model).
+     * @param ContainerInterface|null       $container    Optional PSR-11 container for resolving guards/hooks.
+     * @param EventDispatcherInterface|null $dispatcher   Optional PSR-14 dispatcher for transition events.
      */
     public function __construct(
-        private BackedEnum $currentState,
+        BackedEnum $currentState,
         private readonly ?ContainerInterface $container = null,
         private readonly ?EventDispatcherInterface $dispatcher = null,
     ) {
+        $this->currentState = $currentState;
         $this->inspector = new EnumInspector();
     }
 
     /**
      * The machine's current state. Reflects the target after a successful
      * {@see self::transitionTo()}.
+     *
+     * @return T
      */
     public function getCurrentState(): BackedEnum
     {
@@ -76,6 +92,8 @@ final class StateMachine
      * A guard that THROWS propagates raw (it is not swallowed into `false`),
      * mirroring {@see self::transitionTo()} so a domain-specific veto reason
      * surfaces consistently in both paths.
+     *
+     * @param T $targetState
      */
     public function can(BackedEnum $targetState, mixed $context = null): bool
     {
@@ -113,7 +131,9 @@ final class StateMachine
      *      config.dispatchEvents is true (§4.6).
      *   7. Return the new state.
      *
-     * @return BackedEnum The new (target) state, identical to `$targetState`.
+     * @param T $targetState
+     *
+     * @return T The new (target) state, identical to `$targetState`.
      *
      * @throws InvalidTransitionException No matching rule, or a guard vetoed.
      * @throws HookExecutionException     An after-hook failed (state already changed).

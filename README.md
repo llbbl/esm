@@ -34,6 +34,8 @@ enum OrderState: string
 use EnumStateMachine\StateMachine;
 use EnumStateMachine\Exceptions\InvalidTransitionException;
 
+// Construct from your model's enum-typed state (`$order->state` is typed
+// `OrderState`) for full PHPStan narrowing of `transitionTo()` / `getCurrentState()`.
 $machine = new StateMachine($order->state);
 
 if ($machine->can(OrderState::Shipped, context: $order)) {

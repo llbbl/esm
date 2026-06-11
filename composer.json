@@ -4,6 +4,12 @@
     "type": "library",
     "keywords": ["state-machine", "enum", "attributes", "fsm", "workflow", "php"],
     "license": "MIT",
+    "authors": [
+        {
+            "name": "Logan Lindquist Land",
+            "email": "logan@llbbl.com"
+        }
+    ],
     "require": {
         "php": ">=8.1"
     },
