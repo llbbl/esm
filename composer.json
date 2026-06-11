@@ -1,0 +1,46 @@
+{
+    "name": "llbbl/enum-state-machine",
+    "description": "Zero-configuration, framework-agnostic PHP state machine driven by Enums and Attributes.",
+    "type": "library",
+    "keywords": ["state-machine", "enum", "attributes", "fsm", "workflow", "php"],
+    "license": "MIT",
+    "require": {
+        "php": ">=8.1"
+    },
+    "require-dev": {
+        "pestphp/pest": "^3.0",
+        "phpstan/phpstan": "^2.0",
+        "psr/container": "^2.0",
+        "psr/event-dispatcher": "^1.0"
+    },
+    "suggest": {
+        "psr/container": "Resolve guard/hook classes via a PSR-11 container for dependency injection.",
+        "psr/event-dispatcher": "Emit PSR-14 transition events for observability/logging."
+    },
+    "autoload": {
+        "psr-4": {
+            "EnumStateMachine\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "EnumStateMachine\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "pest",
+        "stan": "phpstan analyse",
+        "qa": [
+            "@stan",
+            "@test"
+        ]
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

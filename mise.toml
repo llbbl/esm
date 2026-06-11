@@ -1,0 +1,4 @@
+# mise — pins the PHP toolchain for this repo.
+# `mise install` provisions the exact version below.
+[tools]
+php = "8.4.20"

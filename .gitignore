@@ -1,0 +1,57 @@
+# ─── LLM / Claude context & scratch ──────────────────────────────
+_/
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+AGENTS.md
+GEMINI.md
+.agent/
+.agents/
+.cursor/
+.cursorrules
+.aider*
+.windsurf/
+.windsurfrules
+.continue/
+.codeium/
+.roo/
+.cline/
+
+# Generated outputs / scratch
+outputs/
+output/
+tmp/
+.tmp/
+*.log
+
+# ─── PHP / Composer ───────────────────────────────────────────────
+/vendor/
+composer.lock
+.composer/
+
+# ─── Testing & coverage ──────────────────────────────────────────
+/build/
+/coverage/
+.phpunit.result.cache
+.phpunit.cache/
+/.phpunit.cache/
+clover.xml
+coverage.xml
+infection.log
+.infection/
+
+# ─── Static analysis & formatting caches ─────────────────────────
+.phpstan.cache/
+phpstan.neon.local
+.php-cs-fixer.cache
+.php_cs.cache
+psalm.xml.local
+/cache/
+
+# ─── Editors / OS ────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
