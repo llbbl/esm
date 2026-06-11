@@ -110,8 +110,7 @@ jobs:
         if: steps.version.outputs.skip != 'true'
         uses: shivammathur/setup-php@v2
         with:
-          # Lowest version the dev toolchain (Pest 3) runs on.
-          php-version: '8.2'
+          php-version: '8.4'
           coverage: none
           tools: composer:v2
 

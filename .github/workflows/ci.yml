@@ -13,9 +13,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Pest 3 requires PHP >= 8.2, so the full suite runs here.
-        # The 8.1 runtime floor is defended by the `lint-floor` job below.
-        php: ['8.2', '8.3', '8.4']
+        # Currently-supported PHP only. Older versions (8.1–8.3) are exercised
+        # locally via Docker (`just legacy all`) — see compose.yaml — because the
+        # committed lock resolves Pest 3's symfony v8 deps, which need PHP >=8.4.
+        php: ['8.4', '8.5']
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,9 +35,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: vendor
-          key: composer-${{ matrix.php }}-${{ hashFiles('composer.json') }}
+          key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
           restore-keys: composer-${{ matrix.php }}-
 
+      # Reproducible install from the committed lock (resolved on PHP 8.4).
       - name: Install dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
 
@@ -45,21 +47,3 @@ jobs:
 
       - name: Tests (Pest)
         run: composer test
-
-  lint-floor:
-    name: Lint on PHP 8.1 (compat floor)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup PHP 8.1
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.1'
-          coverage: none
-
-      # Pest 3 can't install on 8.1, so we only assert that src/ parses on the
-      # declared runtime floor — the guarantee `composer.json` (php >=8.1) makes.
-      - name: Syntax-check src on the 8.1 floor
-        run: find src -name '*.php' -print0 | xargs -0 -n1 -P4 php -l

@@ -1,0 +1,42 @@
+# Legacy-PHP test matrix (run locally; GitHub CI covers the supported 8.4/8.5).
+#
+#   docker compose run --rm php82      # full Pest suite on 8.2
+#   docker compose run --rm php83      # full Pest suite on 8.3
+#   docker compose run --rm php81      # syntax-lint src/ (Pest 3 needs >= 8.2)
+#
+# or via just:  `just legacy all`  /  `just legacy run 8.2`
+#
+# The repo is mounted read-only and copied inside the container, so each
+# version's `composer update` never rewrites the host composer.lock.
+name: esm-legacy
+
+services:
+  php81:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        PHP_VERSION: "8.1"
+    volumes:
+      - ./:/src:ro
+    command: ["bash", "/src/docker/run.sh"]
+
+  php82:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        PHP_VERSION: "8.2"
+    volumes:
+      - ./:/src:ro
+    command: ["bash", "/src/docker/run.sh"]
+
+  php83:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        PHP_VERSION: "8.3"
+    volumes:
+      - ./:/src:ro
+    command: ["bash", "/src/docker/run.sh"]

@@ -119,6 +119,33 @@ just coverage   # tests with coverage
 
 All recipes run through the mise-pinned PHP.
 
+### 3. Testing on older PHP (8.1–8.3)
+
+The library supports PHP **>= 8.1**, but the dev toolchain doesn't: Pest 3 pulls
+in `symfony/*` v8, which requires PHP **>= 8.4.1**. So the committed
+`composer.lock` only installs on 8.4+, and GitHub CI runs the full suite on the
+**currently-supported** versions (8.4 and 8.5) with a reproducible
+`composer install`.
+
+Older versions are exercised **locally via Docker**, where each version resolves
+its own compatible dependency set:
+
+```bash
+just legacy all        # 8.1 (lint) + 8.2 + 8.3 (full Pest suite)
+just legacy run 8.2    # a single version
+just legacy build      # rebuild the images after editing docker/Dockerfile
+```
+
+- **8.2 / 8.3** run the full Pest suite — the container does a `composer update`
+  (resolving `symfony` v7, which Pest 3 also supports) before testing.
+- **8.1** can't install Pest 3 at all, so it only syntax-checks `src/` (`php -l`)
+  to defend the runtime floor.
+
+The repo is mounted **read-only** and copied inside the container, so a legacy
+run's `composer update` never rewrites your 8.4-resolved host `composer.lock`.
+Requires Docker (`docker compose`); the recipes live in the `legacy` module
+(`compose.yaml` + `docker/`).
+
 ## License
 
 MIT

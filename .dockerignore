@@ -1,0 +1,4 @@
+# The Dockerfile copies nothing from the repo (sources are mounted at runtime),
+# so keep the build context tiny — only docker/ is needed to build the image.
+*
+!docker

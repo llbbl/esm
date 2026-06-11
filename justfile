@@ -5,6 +5,9 @@
 # `just php bump`, `just php floor`, `just php version`.
 mod php 'php.justfile'
 
+# Legacy-PHP test matrix via Docker (8.1–8.3): `just legacy all`, `just legacy run 8.2`.
+mod legacy 'legacy.justfile'
+
 # Run every PHP command through the mise-pinned interpreter.
 php_bin := "mise exec -- php"
 
