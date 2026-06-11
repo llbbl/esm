@@ -1,0 +1,144 @@
+name: Release
+
+# Packagist publishes from git tags (no `version` field in composer.json), so a
+# "release" here is just: infer the next version, run the QA gate, push a
+# `vX.Y.Z` tag, and cut a GitHub Release. Packagist auto-syncs from the tag.
+#
+# Patch + minor are cut automatically on push to main. MAJOR (breaking) releases
+# are MANUAL: an auto run that detects a breaking change stops and asks you to
+# re-run this workflow via the Actions tab with `bump: major`.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump (auto = infer from conventional commits)'
+        required: true
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    # Defensive: never react to an automated release commit (we don't make one,
+    # but this keeps the workflow loop-safe if that ever changes).
+    if: ${{ github.event_name == 'workflow_dispatch' || !startsWith(github.event.head_commit.message, 'chore(release):') }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine next version
+        id: version
+        env:
+          EVENT: ${{ github.event_name }}
+          REQUESTED: ${{ github.event.inputs.bump }}
+        run: |
+          set -euo pipefail
+
+          latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          version="${latest_tag#v}"
+          IFS='.' read -r major minor patch <<< "$version"
+
+          # Commit subjects since the last tag (whole history if untagged).
+          if git rev-parse "$latest_tag" >/dev/null 2>&1; then
+            commits=$(git log "$latest_tag"..HEAD --pretty=format:"%s")
+          else
+            commits=$(git log --pretty=format:"%s")
+          fi
+
+          # Infer the bump level from Conventional Commits.
+          #   foo!: / feat(x)!: / "BREAKING CHANGE" -> major
+          #   feat: / feat(scope):                  -> minor
+          #   anything else (fix:, chore:, docs:, …)-> patch
+          if printf '%s\n' "$commits" | grep -qE '^[a-z]+(\(.+\))?!:|BREAKING CHANGE'; then
+            inferred=major
+          elif printf '%s\n' "$commits" | grep -qE '^feat(\(.+\))?:'; then
+            inferred=minor
+          else
+            inferred=patch
+          fi
+
+          level="$inferred"
+          if [ "$EVENT" = "workflow_dispatch" ] && [ "${REQUESTED:-auto}" != "auto" ]; then
+            level="$REQUESTED"
+          fi
+          echo "event=$EVENT  inferred=$inferred  requested=${REQUESTED:-n/a}  ->  level=$level"
+
+          # MAJOR is manual-only: an automatic (push) run never cuts one.
+          if [ "$EVENT" = "push" ] && [ "$level" = "major" ]; then
+            echo "::notice title=Major release pending::Breaking change detected since ${latest_tag}. Majors are manual — re-run the Release workflow from the Actions tab with bump=major to cut it."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Nothing new since the last tag on an auto run -> no release.
+          if [ "$EVENT" = "push" ] && [ -z "$commits" ]; then
+            echo "No commits since ${latest_tag} — nothing to release."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          case "$level" in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            patch) patch=$((patch + 1)) ;;
+          esac
+
+          next="v${major}.${minor}.${patch}"
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "Next version: $next (from ${latest_tag}, ${level})"
+
+      - name: Setup PHP
+        if: steps.version.outputs.skip != 'true'
+        uses: shivammathur/setup-php@v2
+        with:
+          # Lowest version the dev toolchain (Pest 3) runs on.
+          php-version: '8.2'
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        if: steps.version.outputs.skip != 'true'
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Quality gate (PHPStan max + Pest)
+        if: steps.version.outputs.skip != 'true'
+        run: composer qa
+
+      - name: Tag and push
+        if: steps.version.outputs.skip != 'true'
+        env:
+          TAG: ${{ steps.version.outputs.next }}
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+
+      - name: Create GitHub Release
+        if: steps.version.outputs.skip != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.next }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
