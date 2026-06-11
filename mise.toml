@@ -1,4 +1,14 @@
 # mise — pins the PHP toolchain for this repo.
-# `mise install` provisions the exact version below.
+#
+# Bootstrap (macOS): run `just php setup` ONCE. It installs the Homebrew C
+# libraries the PHP build links against and compiles the pinned PHP below.
+#
+# NOTE: mise's php plugin compiles from source and (as of now) hardcodes the
+# EOL `openssl@1.1`. `just php setup` points the build at `openssl@3` via
+# `brew --prefix`, so the build gets a working https/TLS wrapper (otherwise
+# Composer-over-https and TLS are broken). See README.md → "Development setup".
+# Pin the EXACT stable version. A fuzzy pin like "8.4" fuzzy-matches the
+# plugin's non-semver RC tags (e.g. 8.4.22RC1), which mise's prerelease filter
+# doesn't catch — so always pin the full release here.
 [tools]
-php = "8.4.20"
+php = "8.4.22"

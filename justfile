@@ -1,8 +1,12 @@
 # enum-state-machine — task runner
 # Run `just` with no args to list available recipes.
 
-# Use the mise-pinned PHP for every recipe.
-php := "mise exec -- php"
+# PHP toolchain recipes (mise + Homebrew): `just php setup`, `just php latest`,
+# `just php bump`, `just php floor`, `just php version`.
+mod php 'php.justfile'
+
+# Run every PHP command through the mise-pinned interpreter.
+php_bin := "mise exec -- php"
 
 # Show available recipes.
 default:
@@ -18,19 +22,15 @@ update:
 
 # Run the test suite (Pest).
 test *ARGS:
-    {{php}} vendor/bin/pest {{ARGS}}
+    {{php_bin}} vendor/bin/pest {{ARGS}}
 
 # Run tests with coverage (requires Xdebug or PCOV).
 coverage:
-    {{php}} vendor/bin/pest --coverage
+    {{php_bin}} vendor/bin/pest --coverage
 
 # Static analysis at PHPStan max.
 stan:
-    {{php}} vendor/bin/phpstan analyse
+    {{php_bin}} vendor/bin/phpstan analyse
 
 # Full quality gate: static analysis + tests. Mirrors the review gate.
 qa: stan test
-
-# Print the active PHP version.
-php-version:
-    {{php}} --version

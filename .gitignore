@@ -26,7 +26,6 @@ tmp/
 
 # ─── PHP / Composer ───────────────────────────────────────────────
 /vendor/
-composer.lock
 .composer/
 
 # ─── Testing & coverage ──────────────────────────────────────────
