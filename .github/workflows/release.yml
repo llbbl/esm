@@ -1,12 +1,6 @@
 name: Release
 
-# Packagist publishes from git tags (no `version` field in composer.json), so a
-# "release" here is just: infer the next version, run the QA gate, push a
-# `vX.Y.Z` tag, and cut a GitHub Release. Packagist auto-syncs from the tag.
-#
-# Patch + minor are cut automatically on push to main. MAJOR (breaking) releases
-# are MANUAL: an auto run that detects a breaking change stops and asks you to
-# re-run this workflow via the Actions tab with `bump: major`.
+# Packagist syncs from stable release tags. Select bump=major on main to release a major version.
 
 on:
   push:
@@ -23,6 +17,10 @@ on:
           - patch
           - minor
           - major
+      major_tag:
+        description: 'For a major release, confirm the exact next tag (for example, v1.0.0)'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -34,9 +32,7 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
-    # Defensive: never react to an automated release commit (we don't make one,
-    # but this keeps the workflow loop-safe if that ever changes).
-    if: ${{ github.event_name == 'workflow_dispatch' || !startsWith(github.event.head_commit.message, 'chore(release):') }}
+    if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || !startsWith(github.event.head_commit.message, 'chore(release):')) }}
 
     steps:
       - name: Checkout
@@ -48,66 +44,20 @@ jobs:
         id: version
         env:
           EVENT: ${{ github.event_name }}
-          REQUESTED: ${{ github.event.inputs.bump }}
+          REQUESTED: ${{ inputs.bump }}
+          MAJOR_TAG: ${{ inputs.major_tag }}
         run: |
           set -euo pipefail
-
-          latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          version="${latest_tag#v}"
-          IFS='.' read -r major minor patch <<< "$version"
-
-          # Commit subjects since the last tag (whole history if untagged).
-          if git rev-parse "$latest_tag" >/dev/null 2>&1; then
-            commits=$(git log "$latest_tag"..HEAD --pretty=format:"%s")
+          published=$(bash ./.github/scripts/release-version.sh resume-tag "$GITHUB_RUN_ID")
+          if [[ -n "$published" ]]; then
+            printf 'next=%s\nresume=true\n' "$published" >> "$GITHUB_OUTPUT"
           else
-            commits=$(git log --pretty=format:"%s")
+            next=$(bash ./.github/scripts/release-version.sh next "$EVENT" "$REQUESTED" "$MAJOR_TAG")
+            printf 'next=%s\nresume=false\n' "$next" >> "$GITHUB_OUTPUT"
           fi
-
-          # Infer the bump level from Conventional Commits.
-          #   foo!: / feat(x)!: / "BREAKING CHANGE" -> major
-          #   feat: / feat(scope):                  -> minor
-          #   anything else (fix:, chore:, docs:, …)-> patch
-          if printf '%s\n' "$commits" | grep -qE '^[a-z]+(\(.+\))?!:|BREAKING CHANGE'; then
-            inferred=major
-          elif printf '%s\n' "$commits" | grep -qE '^feat(\(.+\))?:'; then
-            inferred=minor
-          else
-            inferred=patch
-          fi
-
-          level="$inferred"
-          if [ "$EVENT" = "workflow_dispatch" ] && [ "${REQUESTED:-auto}" != "auto" ]; then
-            level="$REQUESTED"
-          fi
-          echo "event=$EVENT  inferred=$inferred  requested=${REQUESTED:-n/a}  ->  level=$level"
-
-          # MAJOR is manual-only: an automatic (push) run never cuts one.
-          if [ "$EVENT" = "push" ] && [ "$level" = "major" ]; then
-            echo "::notice title=Major release pending::Breaking change detected since ${latest_tag}. Majors are manual — re-run the Release workflow from the Actions tab with bump=major to cut it."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # Nothing new since the last tag on an auto run -> no release.
-          if [ "$EVENT" = "push" ] && [ -z "$commits" ]; then
-            echo "No commits since ${latest_tag} — nothing to release."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          case "$level" in
-            major) major=$((major + 1)); minor=0; patch=0 ;;
-            minor) minor=$((minor + 1)); patch=0 ;;
-            patch) patch=$((patch + 1)) ;;
-          esac
-
-          next="v${major}.${minor}.${patch}"
-          echo "next=$next" >> "$GITHUB_OUTPUT"
-          echo "skip=false" >> "$GITHUB_OUTPUT"
-          echo "Next version: $next (from ${latest_tag}, ${level})"
 
       - name: Setup PHP
-        if: steps.version.outputs.skip != 'true'
+        if: steps.version.outputs.next != '' && steps.version.outputs.resume != 'true'
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
@@ -115,29 +65,40 @@ jobs:
           tools: composer:v2
 
       - name: Install dependencies
-        if: steps.version.outputs.skip != 'true'
+        if: steps.version.outputs.next != '' && steps.version.outputs.resume != 'true'
         run: composer install --no-interaction --no-progress --prefer-dist
 
       - name: Quality gate (PHPStan max + Pest)
-        if: steps.version.outputs.skip != 'true'
+        if: steps.version.outputs.next != '' && steps.version.outputs.resume != 'true'
         run: composer qa
 
       - name: Tag and push
-        if: steps.version.outputs.skip != 'true'
+        if: steps.version.outputs.next != '' && steps.version.outputs.resume != 'true'
         env:
+          EVENT: ${{ github.event_name }}
+          REQUESTED: ${{ inputs.bump }}
+          MAJOR_TAG: ${{ inputs.major_tag }}
           TAG: ${{ steps.version.outputs.next }}
         run: |
           set -euo pipefail
+          main=$(git ls-remote --exit-code origin refs/heads/main)
+          if [[ ${main%%$'\t'*} != "$(git rev-parse HEAD)" ]]; then
+            echo '::error::This run is no longer at the tip of main.'
+            exit 1
+          fi
+          bash ./.github/scripts/release-version.sh validate-tag "$EVENT" "$REQUESTED" "$MAJOR_TAG" "$TAG"
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "$TAG" -m "Release $TAG"
-          git push origin "$TAG"
+          # The run ID lets a retry finish publishing this tag without creating another one.
+          git tag -a "$TAG" -m "Release $TAG" -m "Release-Run-ID: $GITHUB_RUN_ID"
+          git push origin "refs/tags/$TAG"
 
       - name: Create GitHub Release
-        if: steps.version.outputs.skip != 'true'
+        if: steps.version.outputs.next != ''
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.next }}
           generate_release_notes: true
+          make_latest: legacy
           draft: false
           prerelease: false
