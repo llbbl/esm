@@ -146,6 +146,14 @@ run's `composer update` never rewrites your 8.4-resolved host `composer.lock`.
 Requires Docker (`docker compose`); the recipes live in the `legacy` module
 (`compose.yaml` + `docker/`).
 
+## Releases
+
+Pushes to `main` automatically release a minor version for `feat:` commits and a patch version for other changes. A breaking commit subject such as `feat(api)!:` or a `BREAKING CHANGE:` footer pauses releases until a maintainer runs **Actions → Release → Run workflow**, selects `main`, chooses `major`, and enters the exact next tag in `major_tag`. For example, `just release-major v1.0.0` dispatches the same workflow using an authenticated `gh` CLI.
+
+The workflow runs PHP QA and validates the `vX.Y.Z` tag before pushing it. An explicit major run may publish only the next major as `vX.0.0`. If the tag push succeeds and GitHub Release creation fails, rerun the original workflow run to finish publishing that tag. Packagist syncs directly from Git tags, so use the Release workflow for publishing.
+
+Run `bash ./tests/release-policy.sh` to check version calculation and tag validation offline.
+
 ## License
 
 MIT

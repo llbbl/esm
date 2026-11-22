@@ -7,6 +7,13 @@ on:
     branches: [main]
 
 jobs:
+  release-policy:
+    name: Release policy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash ./tests/release-policy.sh
+
   qa:
     name: QA (PHP ${{ matrix.php }})
     runs-on: ubuntu-latest
